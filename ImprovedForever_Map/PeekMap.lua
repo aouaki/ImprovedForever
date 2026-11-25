@@ -117,12 +117,17 @@ local function Apply()
     if not scroll or saved then return end
     local w, h = scroll:GetSize()
     if not (w and h and w > 0 and h > 0) then return end
-    saved = { alphas = {}, points = {}, scale = scroll:GetScale(), alpha = scroll:GetAlpha() }
+    saved = { alphas = {}, points = {}, scale = scroll:GetScale(), alpha = scroll:GetAlpha(),
+        strata = scroll:GetFrameStrata(), fixedStrata = scroll:HasFixedFrameStrata() }
     for _, child in ipairs({ map:GetChildren() }) do
         if child ~= scroll then Fade(child) end
     end
     for _, region in ipairs({ map:GetRegions() }) do Fade(region) end
     for i = 1, scroll:GetNumPoints() do saved.points[i] = { scroll:GetPoint(i) } end
+    -- The faded quest sidebar is HIGH. Keep the visible canvas above it
+    -- so its pins receive mouse input without changing the sidebar controls.
+    scroll:SetFrameStrata("DIALOG")
+    scroll:SetFixedFrameStrata(true)
     Layout()
     scroll:SetAlpha(PeekMap.Settings().alpha)
 end
@@ -148,6 +153,8 @@ local function Restore()
     PeekMap.Keys(false)
     for region, alpha in pairs(saved.alphas) do region:SetAlpha(alpha) end
     if scroll then
+        scroll:SetFrameStrata(saved.strata)
+        scroll:SetFixedFrameStrata(saved.fixedStrata)
         scroll:SetScale(saved.scale)
         scroll:ClearAllPoints()
         for _, point in ipairs(saved.points) do scroll:SetPoint(unpack(point)) end
