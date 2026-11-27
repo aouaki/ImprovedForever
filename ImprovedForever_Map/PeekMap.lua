@@ -153,13 +153,15 @@ end
 
 local function Restore()
     local scroll = WorldMapFrame and WorldMapFrame.ScrollContainer
+    if scroll and saved and saved.cursorPosition then
+        scroll.GetCursorPosition = saved.cursorPosition
+    end
     FadeSpoken(false)
     if not saved then return end
     IF.Focus.DimNative(place, false)
     PeekMap.Keys(false)
     for region, alpha in pairs(saved.alphas) do region:SetAlpha(alpha) end
     if scroll then
-        if saved.cursorPosition then scroll.GetCursorPosition = saved.cursorPosition end
         scroll:SetScale(saved.scale)
         scroll:ClearAllPoints()
         for _, point in ipairs(saved.points) do scroll:SetPoint(unpack(point)) end
