@@ -70,7 +70,7 @@ end
 
 local peeking = false      -- the open map is a peek
 local legend               -- the button prompts, on the map
-local saved                -- what the look changed: alphas, anchors and scale
+local saved                -- what the look changed: fades, anchors, scale and layers
 local restorePending = false
 local hold                -- the secure map-opening button, also used for layout
 
@@ -91,8 +91,8 @@ local function Place()
 end
 
 local function Fade(region)
-    saved.alphas[region] = region:GetAlpha()
-    region:SetAlpha(0)
+    saved.faded[region] = true
+    IF.Focus.Fade(region, true)
 end
 
 -- The map scaled to the place's height, centred on it (offsets in the map's
@@ -156,7 +156,7 @@ local function Apply()
     if not scroll or saved then return end
     local w, h = scroll:GetSize()
     if not (w and h and w > 0 and h > 0) then return end
-    saved = { alphas = {}, points = {}, scale = scroll:GetScale(), mapScale = map:GetScale(), alpha = scroll:GetAlpha() }
+    saved = { faded = {}, points = {}, scale = scroll:GetScale(), mapScale = map:GetScale(), alpha = scroll:GetAlpha() }
     for _, child in ipairs({ map:GetChildren() }) do
         if child ~= scroll then Fade(child) end
     end
@@ -184,8 +184,8 @@ local function Restore()
     if not saved then return end
     IF.Focus.DimNative(place, false)
     PeekMap.Keys(false)
+    for region in pairs(saved.faded) do IF.Focus.Fade(region, false) end
     if IF.InCombat() then restorePending = true; return end
-    for region, alpha in pairs(saved.alphas) do region:SetAlpha(alpha) end
     if scroll then
         RestoreGeometry(scroll)
     end
@@ -207,7 +207,7 @@ refade:SetScript("OnUpdate", function()
     end
     FadeSpoken(true)
     for _, child in ipairs({ WorldMapFrame:GetChildren() }) do
-        if child ~= WorldMapFrame.ScrollContainer and saved.alphas[child] == nil then Fade(child) end
+        if child ~= WorldMapFrame.ScrollContainer and saved.faded[child] == nil then Fade(child) end
     end
     local pointer = _G.SmartNavigation and SmartNavigation.Pointer
     if pointer and pointer:GetAlpha() > 0 then IF.Focus.DimNative(place, true) end
@@ -227,9 +227,7 @@ IF.OnLogin(function()
 end)
 
 ---------------------------------------------------------------------------
--- While peeking: L1 / R1 zoom the map out / in (sub-zone <-> zone <-> continent
--- <-> world), L2 /
--- R2 move the focus (the super-tracked quest) to the previous / next
+-- While peeking: L2 / R2 move the focus (the super-tracked quest) to the previous / next
 -- tracked quest. Override bindings on a
 -- button of ours, only while the game has the pad (not when the map took it
 -- as a window: a window keeps its buttons), out of combat.
@@ -284,49 +282,16 @@ local function MoveFocus(step)
     C_SuperTrack.SetSuperTrackedQuestID(ids[target])
 end
 
--- The map's own level, out (parent map) / in (the child map the player is
--- in, else the one we came out of). Native SetMapID, as its nav bar does.
-local cameFrom = {}   -- map left going out -> the map to go back in to
-
-local function ZoomMap(out)
-    local map = WorldMapFrame
-    if not (map and map.GetMapID and map.SetMapID) then return end
-    local id = map:GetMapID()
-    if not id then return end
-    local target
-    if out then
-        local info = C_Map.GetMapInfo(id)
-        local parent = info and info.parentMapID
-        if parent and parent > 0 then
-            cameFrom[parent] = id
-            target = parent
-        end
-    else
-        local back = cameFrom[id]
-        if back then
-            target = back
-        else
-            for _, child in ipairs(C_Map.GetMapChildrenInfo(id) or {}) do
-                local pos = C_Map.GetPlayerMapPosition(child.mapID, "player")
-                if pos and pos.GetXY and pos:GetXY() then
-                    target = child.mapID
-                    break
-                end
-            end
-        end
-    end
-    if target then map:SetMapID(target) end
-end
-
+-- Use the native mouse and navbar handlers for map navigation. Calling
+-- SetMapID from this addon callback taints native map state. Consume the
+-- shoulder presses too, so they do not trigger gameplay while peeking.
 local catch = CreateFrame("Button", "ImprovedForeverPeekMapCatch", UIParent)
 catch:RegisterForClicks("AnyDown")
 catch:SetScript("OnClick", function(_, key)
     local action = KEYS[key]
     if not (peeking and action) then return end
-    if action == "out" then ZoomMap(true)
-    elseif action == "in" then ZoomMap(false)
-    elseif action == "prev" then MoveFocus(-1)
-    else MoveFocus(1) end
+    if action == "prev" then MoveFocus(-1)
+    elseif action == "next" then MoveFocus(1) end
 end)
 
 local keysOn = false
@@ -531,7 +496,6 @@ end
 legend = IF.InputLegend(labelFrame)
 local LEGEND = {
     { { "PADLTRIGGER", "PADRTRIGGER" }, { "PADLTRIGGER", "PADRTRIGGER" }, "Change quest" },
-    { { "PADLSHOULDER", "PADRSHOULDER" }, { "PADLSHOULDER", "PADRSHOULDER" }, "Zoom map out / in" },
 }
 
 function PeekMap.ShowLegend()
@@ -569,7 +533,7 @@ function PeekMap.Opened()
     if PeekMap.debug then
         local scroll = WorldMapFrame.ScrollContainer
         local n = 0
-        for _ in pairs(saved and saved.alphas or {}) do n = n + 1 end
+        for _ in pairs(saved and saved.faded or {}) do n = n + 1 end
         local cx, cy = scroll:GetCenter()
         PeekMap.Say(("peek: shown, look applied: %s, map %dx%d, scale %.3f, centre %s, %s, alpha %.2f,"
             .. " visible: %s, frame alpha %.2f, frame scale %.3f, %d parts faded"):format(tostring(saved ~= nil),
