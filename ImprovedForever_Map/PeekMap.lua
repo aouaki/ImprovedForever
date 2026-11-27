@@ -117,13 +117,15 @@ local function Apply()
     if not scroll or saved then return end
     local w, h = scroll:GetSize()
     if not (w and h and w > 0 and h > 0) then return end
-    saved = { alphas = {}, points = {}, areaLabels = {}, scale = scroll:GetScale(), alpha = scroll:GetAlpha(),
-        strata = scroll:GetFrameStrata(), fixedStrata = scroll:HasFixedFrameStrata() }
+    saved = { alphas = {}, points = {}, scale = scroll:GetScale(), alpha = scroll:GetAlpha() }
     for _, child in ipairs({ map:GetChildren() }) do
         if child ~= scroll then Fade(child) end
     end
     for _, region in ipairs({ map:GetRegions() }) do Fade(region) end
     for i = 1, scroll:GetNumPoints() do saved.points[i] = { scroll:GetPoint(i) } end
+    saved.areaLabels = {}
+    saved.strata = scroll:GetFrameStrata()
+    saved.fixedStrata = scroll:HasFixedFrameStrata()
     -- AreaLabelDataProvider pins its zone/POI names to HIGH, even though
     -- they belong to the canvas. Keep them above the raised map artwork.
     for provider in pairs(map.dataProviders or {}) do
@@ -163,8 +165,6 @@ local function Restore()
     PeekMap.Keys(false)
     for region, alpha in pairs(saved.alphas) do region:SetAlpha(alpha) end
     if scroll then
-        scroll:SetFrameStrata(saved.strata)
-        scroll:SetFixedFrameStrata(saved.fixedStrata)
         scroll:SetScale(saved.scale)
         scroll:ClearAllPoints()
         for _, point in ipairs(saved.points) do scroll:SetPoint(unpack(point)) end
@@ -173,6 +173,10 @@ local function Restore()
     for label, original in pairs(saved.areaLabels) do
         label:SetFrameStrata(original.strata)
         label:SetFixedFrameStrata(original.fixed)
+    end
+    if scroll then
+        scroll:SetFrameStrata(saved.strata)
+        scroll:SetFixedFrameStrata(saved.fixedStrata)
     end
     saved = nil
 end
