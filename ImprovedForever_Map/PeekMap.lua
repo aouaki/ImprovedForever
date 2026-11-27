@@ -111,24 +111,45 @@ local function Layout()
     PeekMap.PlaceLegend()
 end
 
+-- Native cursor conversion assumes the canvas and outer map have the same
+-- scale. A peek scales the canvas alone; its mouse coordinates must use
+-- that canvas's effective scale for zone hover, clicks, panning and zoom.
+local function PeekCursorPosition(self)
+    local x, y = GetCursorPosition()
+    local scale = self:GetEffectiveScale()
+    return x / scale, y / scale
+end
+
 local function Apply()
     local map = WorldMapFrame
     local scroll = map and map.ScrollContainer
     if not scroll or saved then return end
     local w, h = scroll:GetSize()
     if not (w and h and w > 0 and h > 0) then return end
-    saved = { alphas = {}, points = {}, scale = scroll:GetScale(), alpha = scroll:GetAlpha(),
-        strata = scroll:GetFrameStrata(), fixedStrata = scroll:HasFixedFrameStrata() }
+    saved = { alphas = {}, points = {}, areaLabels = {}, scale = scroll:GetScale(), alpha = scroll:GetAlpha(),
+        strata = scroll:GetFrameStrata(), fixedStrata = scroll:HasFixedFrameStrata(),
+        cursorPosition = scroll.GetCursorPosition }
     for _, child in ipairs({ map:GetChildren() }) do
         if child ~= scroll then Fade(child) end
     end
     for _, region in ipairs({ map:GetRegions() }) do Fade(region) end
     for i = 1, scroll:GetNumPoints() do saved.points[i] = { scroll:GetPoint(i) } end
+    -- AreaLabelDataProvider pins its zone/POI names to HIGH, even though
+    -- they belong to the canvas. Keep them above the raised map artwork.
+    for provider in pairs(map.dataProviders or {}) do
+        local label = provider.Label
+        if label and type(provider.OnSetAreaLabel) == "function" then
+            saved.areaLabels[label] = { strata = label:GetFrameStrata(), fixed = label:HasFixedFrameStrata() }
+            label:SetFrameStrata("FULLSCREEN")
+            label:SetFixedFrameStrata(true)
+        end
+    end
     -- The faded quest sidebar is HIGH. Keep the visible canvas above it
     -- so its pins receive mouse input without changing the sidebar controls.
     scroll:SetFrameStrata("DIALOG")
     scroll:SetFixedFrameStrata(true)
     Layout()
+    scroll.GetCursorPosition = PeekCursorPosition
     scroll:SetAlpha(PeekMap.Settings().alpha)
 end
 
@@ -153,12 +174,17 @@ local function Restore()
     PeekMap.Keys(false)
     for region, alpha in pairs(saved.alphas) do region:SetAlpha(alpha) end
     if scroll then
+        scroll.GetCursorPosition = saved.cursorPosition
         scroll:SetFrameStrata(saved.strata)
         scroll:SetFixedFrameStrata(saved.fixedStrata)
         scroll:SetScale(saved.scale)
         scroll:ClearAllPoints()
         for _, point in ipairs(saved.points) do scroll:SetPoint(unpack(point)) end
         scroll:SetAlpha(saved.alpha)
+    end
+    for label, original in pairs(saved.areaLabels) do
+        label:SetFrameStrata(original.strata)
+        label:SetFixedFrameStrata(original.fixed)
     end
     saved = nil
 end
