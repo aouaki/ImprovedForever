@@ -170,13 +170,13 @@ local function Restore()
         for _, point in ipairs(saved.points) do scroll:SetPoint(unpack(point)) end
         scroll:SetAlpha(saved.alpha)
     end
-    for label, original in pairs(saved.areaLabels) do
-        label:SetFrameStrata(original.strata)
-        label:SetFixedFrameStrata(original.fixed)
-    end
     if scroll then
         scroll:SetFrameStrata(saved.strata)
         scroll:SetFixedFrameStrata(saved.fixedStrata)
+    end
+    for label, original in pairs(saved.areaLabels) do
+        label:SetFrameStrata(original.strata)
+        label:SetFixedFrameStrata(original.fixed)
     end
     saved = nil
 end
