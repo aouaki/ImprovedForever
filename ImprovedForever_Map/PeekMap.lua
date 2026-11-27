@@ -132,12 +132,14 @@ local function Apply()
         local label = provider.Label
         if label and type(provider.OnSetAreaLabel) == "function" then
             saved.areaLabels[label] = { strata = label:GetFrameStrata(), fixed = label:HasFixedFrameStrata() }
+            label:SetFixedFrameStrata(false)
             label:SetFrameStrata("FULLSCREEN")
             label:SetFixedFrameStrata(true)
         end
     end
     -- The faded quest sidebar is HIGH. Keep the visible canvas above it
     -- so its pins receive mouse input without changing the sidebar controls.
+    scroll:SetFixedFrameStrata(false)
     scroll:SetFrameStrata("DIALOG")
     scroll:SetFixedFrameStrata(true)
     Layout()
@@ -171,12 +173,14 @@ local function Restore()
         scroll:SetAlpha(saved.alpha)
     end
     if scroll then
+        scroll:SetFixedFrameStrata(false)
         scroll:SetFrameStrata(saved.strata)
-        scroll:SetFixedFrameStrata(saved.fixedStrata)
+        if saved.fixedStrata then scroll:SetFixedFrameStrata(true) end
     end
     for label, original in pairs(saved.areaLabels) do
+        label:SetFixedFrameStrata(false)
         label:SetFrameStrata(original.strata)
-        label:SetFixedFrameStrata(original.fixed)
+        if original.fixed then label:SetFixedFrameStrata(true) end
     end
     saved = nil
 end
