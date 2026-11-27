@@ -111,15 +111,6 @@ local function Layout()
     PeekMap.PlaceLegend()
 end
 
--- Native cursor conversion assumes the canvas and outer map have the same
--- scale. A peek scales the canvas alone; its mouse coordinates must use
--- that canvas's effective scale for zone hover, clicks, panning and zoom.
-local function PeekCursorPosition(self)
-    local x, y = GetCursorPosition()
-    local scale = self:GetEffectiveScale()
-    return x / scale, y / scale
-end
-
 local function Apply()
     local map = WorldMapFrame
     local scroll = map and map.ScrollContainer
@@ -127,8 +118,7 @@ local function Apply()
     local w, h = scroll:GetSize()
     if not (w and h and w > 0 and h > 0) then return end
     saved = { alphas = {}, points = {}, areaLabels = {}, scale = scroll:GetScale(), alpha = scroll:GetAlpha(),
-        strata = scroll:GetFrameStrata(), fixedStrata = scroll:HasFixedFrameStrata(),
-        cursorPosition = scroll.GetCursorPosition }
+        strata = scroll:GetFrameStrata(), fixedStrata = scroll:HasFixedFrameStrata() }
     for _, child in ipairs({ map:GetChildren() }) do
         if child ~= scroll then Fade(child) end
     end
@@ -149,7 +139,6 @@ local function Apply()
     scroll:SetFrameStrata("DIALOG")
     scroll:SetFixedFrameStrata(true)
     Layout()
-    scroll.GetCursorPosition = PeekCursorPosition
     scroll:SetAlpha(PeekMap.Settings().alpha)
 end
 
@@ -174,7 +163,6 @@ local function Restore()
     PeekMap.Keys(false)
     for region, alpha in pairs(saved.alphas) do region:SetAlpha(alpha) end
     if scroll then
-        scroll.GetCursorPosition = saved.cursorPosition
         scroll:SetFrameStrata(saved.strata)
         scroll:SetFixedFrameStrata(saved.fixedStrata)
         scroll:SetScale(saved.scale)
