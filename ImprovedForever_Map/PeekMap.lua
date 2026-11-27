@@ -125,6 +125,23 @@ local function Layout()
     PeekMap.PlaceLegend()
 end
 
+-- Restricted SetPoint accepts only explicitly protected relative handles.
+-- Keep the original anchors responsive through protected frames of ours,
+-- without reparenting or explicitly protecting native map frames.
+local anchorProxies = {}
+local function AnchorReference(relative)
+    local _, explicit = relative:IsProtected()
+    if explicit then return relative end
+    local proxy = anchorProxies[relative]
+    if not proxy then
+        proxy = CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
+        proxy:SetAllPoints(relative)
+        proxy:EnableMouse(false)
+        anchorProxies[relative] = proxy
+    end
+    return proxy
+end
+
 local function RestoreGeometry(scroll)
     hold:SetAttribute("scale", saved.mapScale)
     hold:SetAttribute("scrollScale", saved.scale)
@@ -132,7 +149,7 @@ local function RestoreGeometry(scroll)
     hold:SetAttribute("points", #saved.points)
     for i, point in ipairs(saved.points) do
         hold:SetAttribute("point" .. i, point[1])
-        hold:SetFrameRef("relative" .. i, point[2] or scroll:GetParent())
+        hold:SetFrameRef("relative" .. i, AnchorReference(point[2] or scroll:GetParent()))
         hold:SetAttribute("relativePoint" .. i, point[3])
         hold:SetAttribute("x" .. i, point[4] or 0)
         hold:SetAttribute("y" .. i, point[5] or 0)
